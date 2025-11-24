@@ -125,7 +125,21 @@ sudo systemctl restart mpd
 Audio sources are mapped to NFC cards in the configuration. Supported formats:
 
 - **Internet Radio**: Direct stream URLs (http://example.com/stream.mp3)
-- **Audiobookshelf**: Items from your Audiobookshelf server (http://localhost:13378/item/123)
+- **Audiobookshelf**: Items from your Audiobookshelf server (http://bigboy:13378/item/123)
+
+### Audiobookshelf Integration
+
+The system integrates with Audiobookshelf for podcast and audiobook playback:
+
+1. **API Authentication**: Uses Bearer token for secure API access
+2. **Progress Tracking**: Automatically saves and restores playback position
+3. **Stream URL Resolution**: Gets direct stream URLs from Audiobookshelf API
+4. **Item Information**: Retrieves metadata (title, author, duration) for display
+
+#### Audiobookshelf API Endpoints Used:
+- `/api/items/{id}/stream` - Get streaming URL
+- `/api/me/progress/{id}` - Save/load playback progress
+- `/api/items/{id}` - Get item metadata
 
 ## Development
 

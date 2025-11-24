@@ -24,9 +24,9 @@ class AudiobookshelfPlayer:
         self.mpd_host = "localhost"
         self.mpd_port = 6600
         self._connected = False
-        self.audiobookshelf_host = "localhost"
+        self.audiobookshelf_host = "bigboy"
         self.audiobookshelf_port = 13378
-        self.audiobookshelf_token: Optional[str] = None
+        self.audiobookshelf_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlJZCI6ImNkNDcxNzlkLWNkOGUtNDNlYy05NGY1LTI3MDZlY2M3OTY5ZCIsIm5hbWUiOiJyYWRpbyIsInR5cGUiOiJhcGkiLCJpYXQiOjE3NjQwMjE3ODR9.MjWYsDQc6iXnxbCK_0aR2UuiyBO5QdBzYfqxpw6IeQc"
 
     async def initialize(self) -> bool:
         """Initialize Audiobookshelf player with MPD connection"""
@@ -88,12 +88,25 @@ class AudiobookshelfPlayer:
             else:
                 self.current_item_id = item_url
 
-            # TODO: Implement Audiobookshelf API call to get stream URL
-            # For now, construct a potential stream URL
-            stream_url = f"http://{self.audiobookshelf_host}:{self.audiobookshelf_port}/api/items/{self.current_item_id}/stream"
+            # Get stream URL from Audiobookshelf API
+            headers = {"Authorization": f"Bearer {self.audiobookshelf_token}"}
+            api_url = f"http://{self.audiobookshelf_host}:{self.audiobookshelf_port}/api/items/{self.current_item_id}/stream"
 
-            logger.info(f"Constructed stream URL: {stream_url}")
-            return stream_url
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=headers) as response:
+                    if response.status == 200:
+                        # The response might be a redirect to the actual stream
+                        if response.status == 302:
+                            stream_url = response.headers.get("Location")
+                        else:
+                            # If no redirect, use the API URL directly
+                            stream_url = api_url
+
+                        logger.info(f"Got stream URL: {stream_url}")
+                        return stream_url
+                    else:
+                        logger.error(f"Failed to get stream URL: {response.status}")
+                        return None
 
         except Exception as e:
             logger.error(f"Failed to get stream URL: {e}")
@@ -184,15 +197,16 @@ class AudiobookshelfPlayer:
             if not self.playing and self.current_url:
                 await self._ensure_connection()
 
-                # TODO: Get saved position from Audiobookshelf API
-                # For now, resume from current position
-                if self.position > 0:
-                    self.mpd_client.seekcur(self.position)
+                # Get saved position from Audiobookshelf API
+                saved_position = await self._get_saved_position()
+                if saved_position > 0:
+                    self.mpd_client.seekcur(saved_position)
+                    self.position = saved_position
 
                 self.mpd_client.pause(0)  # 0 = unpause
                 self.playing = True
 
-                logger.info("Audiobookshelf playback resumed")
+                logger.info(f"Audiobookshelf playback resumed from {saved_position}s")
 
         except Exception as e:
             logger.error(f"Error resuming Audiobookshelf playback: {e}")
@@ -216,13 +230,96 @@ class AudiobookshelfPlayer:
         """Save current position to Audiobookshelf"""
         try:
             if self.current_item_id and self.position > 0:
-                # TODO: Implement Audiobookshelf API call to save position
-                logger.info(
-                    f"Would save position {self.position}s for item {self.current_item_id}"
-                )
+                headers = {"Authorization": f"Bearer {self.audiobookshelf_token}"}
+                api_url = f"http://{self.audiobookshelf_host}:{self.audiobookshelf_port}/api/me/progress/{self.current_item_id}"
+
+                payload = {
+                    "currentTime": self.position,
+                    "isFinished": False,
+                    "lastUpdate": int(asyncio.get_event_loop().time()),
+                }
+
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        api_url, json=payload, headers=headers
+                    ) as response:
+                        if response.status == 200:
+                            logger.info(
+                                f"Saved position {self.position}s for item {self.current_item_id}"
+                            )
+                        else:
+                            logger.error(f"Failed to save position: {response.status}")
 
         except Exception as e:
             logger.error(f"Error saving position: {e}")
+
+    async def _get_saved_position(self) -> float:
+        """Get saved position from Audiobookshelf"""
+        try:
+            if not self.current_item_id:
+                return 0.0
+
+            headers = {"Authorization": f"Bearer {self.audiobookshelf_token}"}
+            api_url = f"http://{self.audiobookshelf_host}:{self.audiobookshelf_port}/api/me/progress/{self.current_item_id}"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return float(data.get("currentTime", 0.0))
+                    else:
+                        logger.warning(
+                            f"Failed to get saved position: {response.status}"
+                        )
+                        return 0.0
+
+        except Exception as e:
+            logger.error(f"Error getting saved position: {e}")
+            return 0.0
+
+    async def get_item_info(self, item_id: str) -> Optional[Dict[str, Any]]:
+        """Get detailed information about an Audiobookshelf item"""
+        try:
+            headers = {"Authorization": f"Bearer {self.audiobookshelf_token}"}
+            api_url = f"http://{self.audiobookshelf_host}:{self.audiobookshelf_port}/api/items/{item_id}"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {
+                            "id": data.get("id"),
+                            "title": data.get("title"),
+                            "author": data.get("author"),
+                            "duration": data.get("duration"),
+                            "type": data.get("mediaType", "unknown"),
+                            "description": data.get("description", ""),
+                        }
+                    else:
+                        logger.error(f"Failed to get item info: {response.status}")
+                        return None
+
+        except Exception as e:
+            logger.error(f"Error getting item info: {e}")
+            return None
+
+            headers = {"Authorization": f"Bearer {self.audiobookshelf_token}"}
+            api_url = f"http://{self.audiobookshelf_host}:{self.audiobookshelf_port}/api/me/progress/{self.current_item_id}"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return float(data.get("currentTime", 0.0))
+                    else:
+                        logger.warning(
+                            f"Failed to get saved position: {response.status}"
+                        )
+                        return 0.0
+
+        except Exception as e:
+            logger.error(f"Error getting saved position: {e}")
+            return 0.0
 
     async def get_status(self) -> Dict[str, Any]:
         """Get current playback status"""
