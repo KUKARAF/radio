@@ -148,15 +148,32 @@ class PlaybackManager:
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
 
-    def get_status(self) -> Dict[str, Any]:
+    async def get_status(self) -> Dict[str, Any]:
         """Get current playback status"""
-        return {
-            "state": self.state.value,
-            "current_source": self.current_source,
-            "current_player": type(self.current_player).__name__
-            if self.current_player
-            else None,
-            "volume": getattr(self.current_player, "volume", 0.5)
-            if self.current_player
-            else 0.5,
-        }
+        try:
+            if self.current_player:
+                player_status = await self.current_player.get_status()
+                return {
+                    "state": self.state.value,
+                    "current_source": self.current_source,
+                    "current_player": type(self.current_player).__name__,
+                    "volume": getattr(self.current_player, "volume", 0.5),
+                    **player_status,
+                }
+            else:
+                return {
+                    "state": self.state.value,
+                    "current_source": None,
+                    "current_player": None,
+                    "volume": 0.5,
+                }
+        except Exception as e:
+            logger.error(f"Error getting status: {e}")
+            return {
+                "state": PlaybackState.ERROR.value,
+                "current_source": self.current_source,
+                "current_player": type(self.current_player).__name__
+                if self.current_player
+                else None,
+                "volume": 0.5,
+            }

@@ -5,10 +5,12 @@ NFC-based smart radio system for audio playback using RFID cards.
 ## Features
 
 - NFC card detection for audio source selection
-- Support for Audiobookshelf and radio streaming
+- MPD (Music Player Daemon) integration for high-quality audio playback
+- Support for Audiobookshelf podcasts and internet radio streaming
 - Event-driven architecture with asyncio
 - GPIO-based NFC scanner integration
 - Configurable card-to-audio mappings
+- Real-time volume control and playback status
 
 ## Installation
 
@@ -96,8 +98,34 @@ The service uses configuration files in the `config/` directory. You can customi
 
 - NFC scanner GPIO pins
 - Audio source mappings
+- MPD connection settings (config/mpd.conf)
+- Audiobookshelf integration
 - Playback settings
 - Logging configuration
+
+### MPD Setup
+
+1. Ensure MPD is installed and running:
+```bash
+sudo systemctl status mpd
+```
+
+2. Configure MPD for your audio hardware:
+```bash
+sudo nano /etc/mpd.conf
+```
+
+3. Restart MPD after configuration changes:
+```bash
+sudo systemctl restart mpd
+```
+
+### Audio Source Configuration
+
+Audio sources are mapped to NFC cards in the configuration. Supported formats:
+
+- **Internet Radio**: Direct stream URLs (http://example.com/stream.mp3)
+- **Audiobookshelf**: Items from your Audiobookshelf server (http://localhost:13378/item/123)
 
 ## Development
 
@@ -123,6 +151,12 @@ uv run pytest
 - RC522 NFC reader
 - GPIO connections for NFC scanner
 - Audio output device (speakers/headphones)
+
+## Software Requirements
+
+- MPD (Music Player Daemon) - installed and running
+- For DietPi Allo image: MPD + O!MPD comes pre-installed
+- For other systems: `sudo apt install mpd`
 
 ## License
 
