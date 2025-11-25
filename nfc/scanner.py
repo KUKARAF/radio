@@ -35,10 +35,11 @@ class NFCState(Enum):
 class NFCScanner:
     """NFC scanner with PN532 interface and card management"""
 
-    def __init__(self, gpio_sda: int = 8, gpio_scl: int = 12, config_manager=None):
-        self.gpio_sda = gpio_sda
-        self.gpio_scl = gpio_scl
-        self.config_manager = config_manager
+    def __init__(self):
+        # Hardware GPIO pins for NFC scanner (SDA=2, SCL=3)
+        self.gpio_sda = 2
+        self.gpio_scl = 3
+        self.config_manager = None
         self.state = NFCState.IDLE
         self.card_handlers: list[Callable[[str], None]] = []
         self.monitoring_task: Optional[asyncio.Task] = None

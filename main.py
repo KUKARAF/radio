@@ -44,10 +44,8 @@ class SmartRadioService:
             self.playback_manager = PlaybackManager(self.config_manager)
             await self.playback_manager.initialize()
 
-            # Initialize NFC scanner
-            self.nfc_scanner = NFCScanner(
-                gpio_sda=8, gpio_scl=12, config_manager=self.config_manager
-            )
+            # Initialize NFC scanner with hardware GPIO pins (SDA=2, SCL=3)
+            self.nfc_scanner = NFCScanner()
             await self.nfc_scanner.initialize()
 
             # Set up event handlers
