@@ -147,7 +147,7 @@ class PlaybackManager:
                     "current_source": self.current_source,
                     "current_player": "UnifiedPlayer",
                     "volume": getattr(self.player, "volume", 0.5),
-                    **player_status
+                    **player_status,
                 }
             else:
                 return {
@@ -162,22 +162,5 @@ class PlaybackManager:
                 "state": PlaybackState.ERROR.value,
                 "current_source": self.current_source,
                 "current_player": "UnifiedPlayer",
-                "volume": 0.5,
-            }
-            else:
-                return {
-                    "state": self.state.value,
-                    "current_source": None,
-                    "current_player": None,
-                    "volume": 0.5,
-                }
-        except Exception as e:
-            logger.error(f"Error getting status: {e}")
-            return {
-                "state": PlaybackState.ERROR.value,
-                "current_source": self.current_source,
-                "current_player": type(self.current_player).__name__
-                if self.current_player
-                else None,
                 "volume": 0.5,
             }
