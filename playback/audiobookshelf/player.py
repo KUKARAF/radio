@@ -3,6 +3,7 @@ Audiobookshelf player for podcast playback using MPD
 """
 
 import asyncio
+import os
 import mpd
 import aiohttp
 from typing import Optional, Dict, Any
@@ -24,9 +25,9 @@ class AudiobookshelfPlayer:
         self.mpd_host = "localhost"
         self.mpd_port = 6600
         self._connected = False
-        self.audiobookshelf_host = "bigboy"
-        self.audiobookshelf_port = 13378
-        self.audiobookshelf_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlJZCI6ImNkNDcxNzlkLWNkOGUtNDNlYy05NGY1LTI3MDZlY2M3OTY5ZCIsIm5hbWUiOiJyYWRpbyIsInR5cGUiOiJhcGkiLCJpYXQiOjE3NjQwMjE3ODR9.MjWYsDQc6iXnxbCK_0aR2UuiyBO5QdBzYfqxpw6IeQc"
+        self.audiobookshelf_host = os.getenv("AUDIOBOOKSHELF_HOST", "bigboy")
+        self.audiobookshelf_port = int(os.getenv("AUDIOBOOKSHELF_PORT", "13378"))
+        self.audiobookshelf_token = os.getenv("AUDIOBOOKSHELF_TOKEN", "")
 
     async def initialize(self) -> bool:
         """Initialize Audiobookshelf player with MPD connection"""

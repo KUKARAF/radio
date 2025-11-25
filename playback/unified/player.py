@@ -4,6 +4,7 @@ Handles both radio streams and Audiobookshelf items with automatic MPD discovery
 """
 
 import asyncio
+import os
 import aiohttp
 from typing import Optional, Dict, Any
 from utils.logger import get_logger
@@ -26,9 +27,9 @@ class UnifiedPlayer:
         self.mpd_connection_manager = MPDConnectionManager(self.mpd_discovery)
 
         # Audiobookshelf settings
-        self.audiobookshelf_host = "bigboy"
-        self.audiobookshelf_port = 13378
-        self.audiobookshelf_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlJZCI6ImNkNDcxNzlkLWNkOGUtNDNlYy05NGY1LTI3MDZlY2M3OTY5ZCIsIm5hbWUiOiJyYWRpbyIsInR5cGUiOiJhcGkiLCJpYXQiOjE3NjQwMjE3ODR9.MjWYsDQc6iXnxbCK_0aR2UuiyBO5QdBzYfqxpw6IeQc"
+        self.audiobookshelf_host = os.getenv("AUDIOBOOKSHELF_HOST", "bigboy")
+        self.audiobookshelf_port = int(os.getenv("AUDIOBOOKSHELF_PORT", "13378"))
+        self.audiobookshelf_token = os.getenv("AUDIOBOOKSHELF_TOKEN", "")
 
     async def initialize(self) -> bool:
         """Initialize the unified player with MPD discovery"""
