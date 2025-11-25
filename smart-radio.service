@@ -9,7 +9,7 @@ User=root
 Group=root
 WorkingDirectory=/opt/smart_radio/.venv
 Environment=PYTHONPATH=/opt/smart_radio
-ExecStart=/root/.local/share/mise/installs/uv/0.9.11/uv-aarch64-unknown-linux-musl/uv run --no-sources /opt/smart_radio/.venv main.py
+ExecStart=/opt/smart_radio/.venv/bin/python main.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
