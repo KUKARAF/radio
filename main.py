@@ -140,32 +140,32 @@ class SmartRadioService:
 
         logger.info("Service shutdown complete")
 
-
     async def main():
-    """Main entry point"""
-    service = SmartRadioService()
+        """Main entry point"""
+        service = SmartRadioService()
 
-    # Set up signal handlers
-    def signal_handler(signum, frame):
-        logger.info(f"Received signal {signum}")
-        asyncio.create_task(service.shutdown())
+        # Set up signal handlers
+        def signal_handler(signum, frame):
+            logger.info(f"Received signal {signum}")
+            asyncio.create_task(service.shutdown())
 
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
 
-    # Start web server in background
-    from web_server import SmartRadioWebServer
-    web_server = SmartRadioWebServer()
-    web_server_task = asyncio.create_task(web_server.main())
+        # Start web server in background
+        from web_server import SmartRadioWebServer
 
-    # Start the service
-    await service.start()
-    
-    # Keep web server running
-    try:
-        await web_server_task
-    except asyncio.CancelledError:
-        logger.info("Web server stopped")
+        web_server = SmartRadioWebServer()
+        web_server_task = asyncio.create_task(web_server.main())
+
+        # Start the service
+        await service.start()
+
+        # Keep web server running
+        try:
+            await web_server_task
+        except asyncio.CancelledError:
+            logger.info("Web server stopped")
 
 
 if __name__ == "__main__":
