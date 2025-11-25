@@ -9,7 +9,7 @@ User=root
 Group=root
 WorkingDirectory=/opt/smart_radio/.venv
 Environment=PYTHONPATH=/opt/smart_radio
-ExecStart=/opt/smart_radio/.venv/bin/python main.py
+ExecStart=/opt/smart_radio/.venv/bin/python /opt/smart_radio/main.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
