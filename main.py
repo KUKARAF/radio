@@ -150,20 +150,8 @@ class SmartRadioService:
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-        # Start web server in background
-        from web_server import SmartRadioWebServer
-
-        web_server = SmartRadioWebServer()
-        web_server_task = asyncio.create_task(web_server.main())
-
-        # Start the service
+        # Start service
         await service.start()
-
-        # Keep web server running
-        try:
-            await web_server_task
-        except asyncio.CancelledError:
-            logger.info("Web server stopped")
 
 
 if __name__ == "__main__":
