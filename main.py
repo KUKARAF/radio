@@ -17,6 +17,9 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Web server for monitoring
+web_server_task = None
+
 
 class SmartRadioService:
     """Main service class for Smart Radio system"""
@@ -43,7 +46,7 @@ class SmartRadioService:
 
             # Initialize NFC scanner
             self.nfc_scanner = NFCScanner(
-                gpio_sda=7, gpio_scl=11, config_manager=self.config_manager
+                gpio_sda=8, gpio_scl=12, config_manager=self.config_manager
             )
             await self.nfc_scanner.initialize()
 
@@ -81,17 +84,28 @@ class SmartRadioService:
         finally:
             await self.shutdown()
 
-    async def _handle_nfc_card(self, card_id: str) -> None:
-        """Handle NFC card detection"""
+    async def _handle_nfc_card(self, card_data: str) -> None:
+        """Handle NFC card detection - card_data can be URL or card ID"""
         try:
-            logger.info(f"NFC card detected: {card_id}")
+            logger.info(f"NFC card detected: {card_data}")
 
-            # Look up card mapping
-            audio_source = await self.config_manager.get_card_mapping(card_id)
+            # Check if card_data is a direct URL
+            if card_data.startswith(("http://", "https://")):
+                # Direct URL from NFC tag
+                audio_source = card_data
+                logger.info(f"Direct URL from NFC tag: {audio_source}")
+            else:
+                # Card ID - look up in configuration
+                audio_source = await self.config_manager.get_card_mapping(card_data)
 
-            if not audio_source:
-                logger.warning(f"No mapping found for card {card_id}")
-                return
+                if not audio_source:
+                    logger.warning(f"No mapping found for card {card_data}")
+                    return
+
+                logger.info(f"Mapped URL for card {card_data}: {audio_source}")
+
+            # Append Audiobookshelf authentication if needed
+            audio_source = self._ensure_auth(audio_source)
 
             logger.info(f"Playing audio source: {audio_source}")
 
@@ -100,7 +114,16 @@ class SmartRadioService:
             await self.playback_manager.play(audio_source)
 
         except Exception as e:
-            logger.error(f"Error handling NFC card {card_id}: {e}")
+            logger.error(f"Error handling NFC card {card_data}: {e}")
+
+    def _ensure_auth(self, url: str) -> str:
+        """Ensure Audiobookshelf URLs have authentication"""
+        if "bigboy:13378" in url and "?" not in url:
+            # Add authentication token for Audiobookshelf
+            auth_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlJZCI6ImNkNDcxNzlkLWNkOGUtNDNlYy05NGY1LTI3MDZlY2M3OTY5ZCIsIm5hbWUiOiJyYWRpbyIsInR5cGUiOiJhcGkiLCJpYXQiOjE3NjQwMjE3ODR9.MjWYsDQc6iXnxbCK_0aR2UuiyBO5QdBzYfqxpw6IeQc"
+            separator = "&" if "?" in url else "?"
+            return f"{url}{separator}token={auth_token}"
+        return url
 
     async def shutdown(self) -> None:
         """Gracefully shutdown the service"""
@@ -118,7 +141,7 @@ class SmartRadioService:
         logger.info("Service shutdown complete")
 
 
-async def main():
+    async def main():
     """Main entry point"""
     service = SmartRadioService()
 
@@ -130,8 +153,19 @@ async def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
+    # Start web server in background
+    from web_server import SmartRadioWebServer
+    web_server = SmartRadioWebServer()
+    web_server_task = asyncio.create_task(web_server.main())
+
     # Start the service
     await service.start()
+    
+    # Keep web server running
+    try:
+        await web_server_task
+    except asyncio.CancelledError:
+        logger.info("Web server stopped")
 
 
 if __name__ == "__main__":

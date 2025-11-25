@@ -1,26 +1,19 @@
 [Unit]
 Description=Smart Radio Service - NFC-based audio playback system
-After=network.target sound.target
+After=network.target sound.target mpd.service
 Wants=network.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
-WorkingDirectory=/opt/smart-radio
-Environment=PYTHONPATH=/opt/smart-radio
-ExecStart=/usr/local/bin/uv run python main.py
+User=root
+Group=root
+WorkingDirectory=/opt/smart_radio
+Environment=PYTHONPATH=/opt/smart_radio
+ExecStart=/opt/smart_radio/.venv/bin/python main.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-
-# Security settings
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/smart-radio/logs /opt/smart_radio/config
 
 # Hardware access for GPIO and NFC
 DeviceAllow=/dev/gpiomem rw

@@ -1,12 +1,21 @@
 """
 NFC Scanner module for smart radio system
-Handles NFC card detection and GPIO interface
+Handles NFC card detection using PN532
 """
 
 import asyncio
 import time
 from typing import Callable, Optional, Dict, Any
 from enum import Enum
+
+try:
+    import adafruit_pn532
+    import board
+    import busio
+
+    PN532_AVAILABLE = True
+except ImportError:
+    PN532_AVAILABLE = False
 
 from utils.logger import get_logger
 
@@ -24,9 +33,9 @@ class NFCState(Enum):
 
 
 class NFCScanner:
-    """NFC scanner with GPIO interface and card management"""
+    """NFC scanner with PN532 interface and card management"""
 
-    def __init__(self, gpio_sda: int = 7, gpio_scl: int = 11, config_manager=None):
+    def __init__(self, gpio_sda: int = 8, gpio_scl: int = 12, config_manager=None):
         self.gpio_sda = gpio_sda
         self.gpio_scl = gpio_scl
         self.config_manager = config_manager
@@ -37,8 +46,9 @@ class NFCScanner:
         self.last_card_time: float = 0
         self.debounce_interval: float = 2.0  # seconds
 
-        # Mock hardware state for development
-        self._mock_mode = True
+        # PN532 hardware
+        self.pn532 = None
+        self._mock_mode = not PN532_AVAILABLE
         self._mock_cards = ["A1B2C3D4", "E5F6G7H8", "I9J0K1L2"]
 
     async def initialize(self) -> bool:
@@ -57,12 +67,12 @@ class NFCScanner:
                 self.state = NFCState.ERROR
                 return False
 
-            # Initialize hardware (mock for now)
+            # Initialize PN532 hardware
             if self._mock_mode:
-                logger.info("Using mock NFC mode for development")
+                logger.info("Using mock NFC mode for development (PN532 not available)")
             else:
-                # TODO: Initialize actual PN532 hardware
-                pass
+                logger.info("Initializing PN532 NFC reader...")
+                await self._initialize_pn532()
 
             self.state = NFCState.READY
             logger.info("NFC scanner initialized successfully")
@@ -77,6 +87,32 @@ class NFCScanner:
         """Check if GPIO pins are available"""
         # Mock implementation - in real hardware would check GPIO
         return True
+
+    async def _initialize_pn532(self) -> None:
+        """Initialize PN532 NFC reader"""
+        try:
+            # Create I2C bus using Adafruit Blinka with specific pins
+            # Note: Using board.D2 and D3 for I2C (SCL=3, SDA=2 on Pi)
+            i2c = busio.I2C(board.D2, board.D3)
+
+            # Initialize PN532
+            self.pn532 = adafruit_pn532.PN532_I2C(i2c)
+
+            # Configure PN532 for I2C mode
+            self.pn532.SAM_configuration()
+
+            # Test communication
+            version = self.pn532.firmware_version
+            if version:
+                logger.info(
+                    f"PN532 initialized successfully on I2C (SCL=12, SDA=8), firmware version: {version}"
+                )
+            else:
+                raise Exception("Failed to communicate with PN532")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize PN532: {e}")
+            raise
 
     def register_card_handler(self, handler: Callable[[str], None]) -> None:
         """Register a callback for NFC card detection"""
@@ -149,7 +185,7 @@ class NFCScanner:
                 await asyncio.sleep(1)  # Wait before retrying
 
     async def _scan_for_card(self) -> Optional[str]:
-        """Scan for NFC card (mock implementation)"""
+        """Scan for NFC card and return URL directly from tag"""
         if self._mock_mode:
             # Simulate random card detection for testing
             import random
@@ -157,8 +193,60 @@ class NFCScanner:
             if random.random() < 0.01:  # 1% chance per scan
                 return random.choice(self._mock_cards)
         else:
-            # TODO: Implement actual NFC scanning
-            pass
+            # Use PN532 to scan for cards and read NDEF records
+            try:
+                # Poll for NFC card
+                uid = self.pn532.read_passive_target(timeout=0.1)
+                if uid:
+                    # Convert UID bytes to hex string for logging
+                    card_id = "".join([f"{byte:02X}" for byte in uid])
+                    logger.info(f"NFC card detected: {card_id}")
+
+                    # Try to read NDEF records from the card
+                    try:
+                        # Read NDEF data from card
+                        ndef_data = self.pn532.ntag2xx_read()
+                        if ndef_data:
+                            # Parse NDEF records to find URL
+                            url = self._parse_ndef_url(ndef_data)
+                            if url:
+                                logger.info(f"Found URL in NFC tag: {url}")
+                                return url
+                            else:
+                                logger.info("No URL found in NDEF data")
+                        else:
+                            logger.info("No NDEF data found on card")
+                    except Exception as e:
+                        logger.debug(f"Error reading NDEF data: {e}")
+
+                    # Return card ID as fallback for config lookup
+                    return card_id
+            except Exception as e:
+                logger.debug(f"NFC scan error: {e}")
+
+        return None
+
+    def _parse_ndef_url(self, ndef_data: bytes) -> Optional[str]:
+        """Parse NDEF data to extract URL"""
+        try:
+            # Simple NDEF URL parsing
+            # NDEF URL records start with 0xD1 (MB=1, ME=0, SR=1, TN=1)
+            # followed by type length (1 byte), payload type (U for URL), and URL
+
+            if len(ndef_data) < 5:
+                return None
+
+            # Check for NDEF URL record
+            if ndef_data[0] == 0xD1:  # NDEF record header
+                type_length = ndef_data[1]
+                if type_length == 1 and ndef_data[2] == ord("U"):  # URL type
+                    url_length = ndef_data[3]
+                    if len(ndef_data) >= 4 + url_length:
+                        url = ndef_data[4 : 4 + url_length].decode("utf-8")
+                        return url
+
+        except Exception as e:
+            logger.debug(f"Error parsing NDEF URL: {e}")
 
         return None
 

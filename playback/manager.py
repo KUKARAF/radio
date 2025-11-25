@@ -31,19 +31,20 @@ class PlaybackManager:
         self.config_manager = config_manager
         self.state = PlaybackState.STOPPED
         self.current_source: Optional[str] = None
-        self.current_player: Optional[RadioPlayer | AudiobookshelfPlayer] = None
+        self.mpd_client = None
 
-        # Initialize players
-        self.radio_player = RadioPlayer()
-        self.audiobookshelf_player = AudiobookshelfPlayer()
+        # Initialize single unified player
+        from playback.unified.player import UnifiedPlayer
+
+        self.player = UnifiedPlayer(config_manager)
 
     async def initialize(self) -> bool:
         """Initialize all playback components"""
         try:
             logger.info("Initializing playback manager...")
 
-            await self.radio_player.initialize()
-            await self.audiobookshelf_player.initialize()
+            # Initialize unified player
+            await self.player.initialize()
 
             logger.info("Playback manager initialized successfully")
             return True
@@ -60,21 +61,11 @@ class PlaybackManager:
             # Stop current playback
             await self.stop()
 
-            # Determine source type and appropriate player
-            if audio_source.startswith(("http://", "https://")):
-                if "audiobookshelf" in audio_source.lower():
-                    self.current_player = self.audiobookshelf_player
-                else:
-                    self.current_player = self.radio_player
-            else:
-                logger.error(f"Unsupported audio source format: {audio_source}")
-                return False
-
             # Start playback
             self.state = PlaybackState.BUFFERING
             self.current_source = audio_source
 
-            success = await self.current_player.play(audio_source)
+            success = await self.player.play(audio_source)
 
             if success:
                 self.state = PlaybackState.PLAYING
@@ -93,13 +84,12 @@ class PlaybackManager:
     async def stop(self) -> None:
         """Stop current playback"""
         try:
-            if self.current_player and self.state != PlaybackState.STOPPED:
+            if self.player and self.state != PlaybackState.STOPPED:
                 logger.info("Stopping current playback...")
-                await self.current_player.stop()
+                await self.player.stop()
 
             self.state = PlaybackState.STOPPED
             self.current_source = None
-            self.current_player = None
 
         except Exception as e:
             logger.error(f"Error stopping playback: {e}")
@@ -107,8 +97,8 @@ class PlaybackManager:
     async def pause(self) -> None:
         """Pause current playback"""
         try:
-            if self.current_player and self.state == PlaybackState.PLAYING:
-                await self.current_player.pause()
+            if self.player and self.state == PlaybackState.PLAYING:
+                await self.player.pause()
                 self.state = PlaybackState.PAUSED
 
         except Exception as e:
@@ -117,8 +107,8 @@ class PlaybackManager:
     async def resume(self) -> None:
         """Resume paused playback"""
         try:
-            if self.current_player and self.state == PlaybackState.PAUSED:
-                await self.current_player.resume()
+            if self.player and self.state == PlaybackState.PAUSED:
+                await self.player.resume()
                 self.state = PlaybackState.PLAYING
 
         except Exception as e:
@@ -129,8 +119,8 @@ class PlaybackManager:
         try:
             volume = max(0.0, min(1.0, volume))
 
-            if self.current_player:
-                await self.current_player.set_volume(volume)
+            if self.player:
+                await self.player.set_volume(volume)
 
             logger.info(f"Volume set to {volume}")
 
@@ -141,8 +131,7 @@ class PlaybackManager:
         """Clean up playback resources"""
         try:
             await self.stop()
-            await self.radio_player.cleanup()
-            await self.audiobookshelf_player.cleanup()
+            await self.player.cleanup()
             logger.info("Playback manager cleaned up")
 
         except Exception as e:
@@ -151,15 +140,30 @@ class PlaybackManager:
     async def get_status(self) -> Dict[str, Any]:
         """Get current playback status"""
         try:
-            if self.current_player:
-                player_status = await self.current_player.get_status()
+            if self.player:
+                player_status = await self.player.get_status()
                 return {
                     "state": self.state.value,
                     "current_source": self.current_source,
-                    "current_player": type(self.current_player).__name__,
-                    "volume": getattr(self.current_player, "volume", 0.5),
-                    **player_status,
+                    "current_player": "UnifiedPlayer",
+                    "volume": getattr(self.player, "volume", 0.5),
+                    **player_status
                 }
+            else:
+                return {
+                    "state": self.state.value,
+                    "current_source": None,
+                    "current_player": None,
+                    "volume": 0.5,
+                }
+        except Exception as e:
+            logger.error(f"Error getting status: {e}")
+            return {
+                "state": PlaybackState.ERROR.value,
+                "current_source": self.current_source,
+                "current_player": "UnifiedPlayer",
+                "volume": 0.5,
+            }
             else:
                 return {
                     "state": self.state.value,

@@ -90,7 +90,7 @@ class AudiobookshelfPlayer:
 
             # Get stream URL from Audiobookshelf API
             headers = {"Authorization": f"Bearer {self.audiobookshelf_token}"}
-            api_url = f"http://{self.audiobookshelf_host}:{self.audiobookshelf_port}/api/items/{self.current_item_id}/stream"
+            api_url = f"http://{self.audiobookshelf_host}:{self.audiobookshelf_port}/api/items/{self.current_item_id}/download"
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(api_url, headers=headers) as response:

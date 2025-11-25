@@ -44,6 +44,14 @@ class ConfigManager:
                 "output_device": "default",
                 "buffer_size": 1024,
             },
+            "mpd": {
+                "discovery_timeout": 3.0,
+                "check_interval": 30.0,
+                "servers": [
+                    {"host": "localhost", "port": 6600},
+                    {"host": "radio", "port": 6600},
+                ],
+            },
             "audiobookshelf": {
                 "base_url": os.getenv("AUDIOBOOKSHELF_BASE_URL", ""),
                 "username": os.getenv("AUDIOBOOKSHELF_USERNAME", ""),
@@ -152,6 +160,10 @@ class ConfigManager:
         return self.config_data.get(
             "audiobookshelf", self.default_config["audiobookshelf"]
         )
+
+    def get_mpd_config(self) -> Dict[str, Any]:
+        """Get MPD configuration"""
+        return self.config_data.get("mpd", self.default_config["mpd"])
 
     async def update_nfc_config(self, config: Dict[str, Any]) -> bool:
         """Update NFC configuration"""
